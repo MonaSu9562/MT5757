@@ -1,0 +1,307 @@
+#------------------定义函数---------------------#
+kern.epan <- function(u){ 
+return(3/4*(1-u^2)*(abs(u)<=1));
+}
+
+LLS.fun <- function(x,X,Y,h)
+{ 
+  z   = 1/h*kern.epan((x-X)/h);     
+  s1  = sum(z*(x-X));
+  s2  = sum(z*(x-X)^2);
+  w   = z*(s2-(x-X)*s1);
+
+  return(sum(w*Y)/sum(w));  
+}
+
+CV1.fun=function(X,Y,h)
+{
+   y1=rep(0,length(Y));
+   for(i in 1:length(Y)){
+      y1[i]=LLS.fun(X[i],X[-i],Y[-i],h);
+      }
+   return(mean((Y-y1)^2));    
+}
+
+CI.boot.fun=function(resids,xpoints,X,yfit,B,h)
+{
+# bootstrap方法求置信区间 
+   result=matrix(0,length(xpoints),B);
+   for(i in 1:length(xpoints)){
+       for(b in 1:B){
+           epsilon=sample(resids,replace=TRUE);
+           newY=yfit+epsilon;
+           #X2=X^2; X3=X^3; X4=X^4;
+           #fit1 <- lm(Y~X+X2+X3+X4);
+           #coefE=c(fit1$coeff);
+           #sigmaE=sqrt(var(fit1$residuals));
+
+           #CK=1.719 # Epanechnikov kernel used.
+           #temp=cbind(2,3*2*X,4*3*X^2)%*%as.vector(coefE[-(1:2)]);
+           #den=sum(temp^2);
+           #h.ROT=CK*(sigmaE^2/den)^(1/(2*1+3));
+
+
+           #newfit=LLS.fun(xpoints[i],X,newY,h=h.ROT);
+           newfit=LLS.fun(xpoints[i],X,newY,h=h);
+           
+           result[i,b]=newfit;
+           }
+       }
+       
+   return(result);
+
+}
+#------------------局部多项式法---------------------#
+#------------------Homework.one---------------------#
+library(SemiPar);
+data(age.income);
+attach(age.income);
+X=age;
+Y=log.income;
+plot(X,Y); #画原始数据的散点图
+
+X2=X^2; X3=X^3; X4=X^4;
+fit1<-lm(Y~X)
+lines(X,fit1$fitted.values,lty=1,col=1,lwd=3)
+fit2<-lm(Y~X+X2)
+lines(X,fit2$fitted.values,lty=2,col=2,lwd=3)
+fit3<-lm(Y~X+X2+X3)
+lines(X,fit3$fitted.values,lty=3,col=3,lwd=3)
+fit4<-lm(Y~X+X2+X3+X4)
+lines(X,fit4$fitted.values,lty=4,col=4,lwd=3)
+legend(20,15.1,c("线性","二次","三次","四次"),lty=c(1,2,3,4),col=c(1,2,3,4))
+
+# Rule-of-Thumb Global Bandwidth Selector;
+X2=X^2; X3=X^3; X4=X^4;
+fit1 <- lm(Y~X+X2+X3+X4);
+coefE=c(fit1$coeff);
+resids=fit1$residuals;
+sigmaE=sqrt(var(resids));
+CK=1.719 # Epanechnikov kernel used.
+temp=cbind(2,3*2*X,4*3*X^2)%*%as.vector(coefE[-(1:2)]);
+den=sum(temp^2);
+h.ROT=CK*(sigmaE^2/den)^(1/(2*1+3));
+print(h.ROT)  #选择窗宽
+
+#final fitting; 
+xfine=seq(0,70,length=50);
+ypred1 <- rep(0,length(xfine));
+for(i in 1:length(xfine)){
+    ypred1[i] <- LLS.fun(xfine[i],X,Y,h=8);   
+}
+plot(X,Y);
+lines(xfine,ypred1,lty=1,col=3);#拟合数据 
+
+
+#求g(x)的置信区间
+yfit=rep(0,length(X));
+for(i in 1:length(X)){
+yfit[i] <- LLS.fun(X[i],X,Y,h=8);
+}
+
+temp=Y-yfit;
+resids=temp-mean(temp);
+result1=CI.boot.fun(resids=resids,xpoints=xfine,X=X,yfit=yfit,B=1000,h=8)
+CI.upp=rep(0,length(xfine));
+CI.low=rep(0,length(xfine));
+for(i in 1:length(xfine)){
+   temp=quantile(result1[i,],probs=c(0.025,0.975),na.rm = T);
+   CI.low[i]=temp[1]; CI.upp[i]=temp[2];
+}
+plot(X,Y)
+lines(xfine,ypred1,lty=1,col=2);                         
+lines(xfine,CI.upp,lty=3,col=3);  
+lines(xfine,CI.low,lty=4,col=4);
+legend(20,15.1,c("Estmate","CI.upp","CI.low"),lty=c(1,3,4),col=c(2,3,4))
+
+#------------------Homework.two---------------------#
+library(locfit);
+data(ethanol);
+attach(ethanol);
+summary(ethanol)
+Y=NOx;
+X=E;
+Y=Y[order(X)]
+X=sort(X)
+plot(X,Y); 
+plot(X,Y); #画原始数据的散点图
+X2=X^2; X3=X^3; X4=X^4;
+fit1<-lm(Y~X)
+lines(X,fit1$fitted.values,lty=1,col=1,lwd=3)
+fit2<-lm(Y~X+X2)
+lines(X,fit2$fitted.values,lty=2,col=2,lwd=3)
+fit3<-lm(Y~X+X2+X3)
+lines(X,fit3$fitted.values,lty=3,col=3,lwd=3)
+fit4<-lm(Y~X+X2+X3+X4)
+lines(X,fit4$fitted.values,lty=4,col=4,lwd=3)
+legend(0.53,4,c("线性","二次","三次","四次"),lty=c(1,2,3,4),col=c(1,2,3,4))
+
+
+
+# Rule-of-Thumb Global Bandwidth Selector;
+X2=X^2; X3=X^3; X4=X^4;
+fit1 <- lm(Y~X+X2+X3+X4);
+coefE=c(fit1$coeff);
+resids=fit1$residuals;
+sigmaE=sqrt(var(resids));
+CK=1.719 # Epanechnikov kernel used.
+temp=cbind(2,3*2*X,4*3*X^2)%*%as.vector(coefE[-(1:2)]);
+den=sum(temp^2);
+h.ROT=CK*(sigmaE^2/den)^(1/(2*1+3));
+print(h.ROT)  #选择窗宽
+
+#final fitting; 
+xfine=seq(0,4,length=50);
+ypred1 <- rep(0,length(xfine));
+for(i in 1:length(xfine)){
+    ypred1[i] <- LLS.fun(xfine[i],X,Y,h=h.ROT);   
+}
+plot(X,Y);
+lines(xfine,ypred1,lty=1,col=3);#拟合数据 
+
+#求g(x)的置信区间
+yfit=rep(0,length(X));
+for(i in 1:length(X)){
+yfit[i] <- LLS.fun(X[i],X,Y,h=h.ROT);
+}
+
+temp=Y-yfit;
+resids=temp-mean(temp);
+result1=CI.boot.fun(resids=resids,xpoints=xfine,X=X,yfit=yfit,B=1000,h=h.ROT)
+CI.upp=rep(0,length(xfine));
+CI.low=rep(0,length(xfine));
+for(i in 1:length(xfine)){
+   temp=quantile(result1[i,],probs=c(0.025,0.975),na.rm = T);
+   CI.low[i]=temp[1]; CI.upp[i]=temp[2];
+}
+plot(X,Y)
+lines(xfine,ypred1,lty=1,col=2);                         
+lines(xfine,CI.upp,lty=3,col=3);  
+lines(xfine,CI.low,lty=4,col=4);
+legend(0.53,4,c("Estmate","CI.upp","CI.low"),lty=c(1,3,4),col=c(2,3,4))
+
+
+
+#--------------------B样条法------------------#
+#------------------Homework.one---------------#
+library(SemiPar);
+data(age.income);
+attach(age.income);
+xobs=age;
+yobs=log.income;
+nobs=length(yobs)
+plot(xobs,yobs); #画原始数据的散点图
+
+library(fda);
+knots=seq(min(xobs),max(xobs),length=15);
+nknots   = length(knots);
+norder   = 4; # applying cubic B-spline basis function.
+nbasis   = length(knots) + norder - 2;  # the number of cubic B-spline basis functions used.
+basis = create.bspline.basis(c(min(xobs),max(xobs)),nbasis,norder,knots); # cubic B-spline basis functions.
+basismat   = eval.basis(xobs, basis);  # design matrix.
+
+# Use quadrature to get integral - Composite Simpson's Rule
+h <- 0.1
+quadpts <- seq(min(xobs),max(xobs),h)
+nquadpts <- length(quadpts)
+quadwts <- c(1,rep(c(4,2),(nquadpts-1)/2))
+quadwts[nquadpts] <- 1
+quadwts <- quadwts*h/3
+
+# Second derivative of basis functions at quadrature points
+Q2basismat   = eval.basis(quadpts, basis,2);
+Rmat = t(Q2basismat)%*%(Q2basismat*(quadwts%*%t(rep(1,nbasis))))
+
+#generalized cross-validation method
+basismat2 = t(basismat)%*%basismat;
+lambdaVec = 10^seq(-10,5,1) # candidates of smoothing parameters
+nlambda = length(lambdaVec)
+df = rep(0,nlambda)
+GCV = df
+for (s in 1:nlambda)
+{
+    lambda = lambdaVec[s]   # smoothing parameter
+    Bmat   = basismat2 + lambda*Rmat;
+    chat = solve(Bmat)%*%t(basismat)%*%yobs;
+    
+    yhat = basismat%*%chat;     # fitted value
+    SSE = t(yhat-yobs)%*%(yhat-yobs)
+    Smat = basismat%*%solve(Bmat)%*%t(basismat)
+    df[s] = sum(diag(Smat))
+    GCV[s] = SSE/(nobs-df[s])^2
+}
+plot(seq(-10,5,1),GCV,type = "l")
+
+# Final fitting.
+lambda.opt = lambdaVec[which.min(GCV)]; # optimal smoothing parameter by GCV criterion.
+Bmat   = basismat2 + lambda.opt*Rmat;
+chat = solve(Bmat)%*%t(basismat)%*%yobs;    # Estimated splines coefficients.
+yhat = basismat%*%chat; # fitted value of Y.
+plot(xobs,yobs);
+lines(xobs,yhat,type = "l",col="red")
+
+#------------------Homework.two---------------------#
+library(locfit);
+data(ethanol);
+attach(ethanol);
+summary(ethanol)
+yobs=NOx;
+xobs=E;
+yobs=yobs[order(xobs)]
+xobs=sort(xobs)
+nobs=length(yobs)
+plot(xobs,yobs); 
+
+library(fda);
+knots=seq(min(xobs),max(xobs),length=15);
+nknots   = length(knots);
+norder   = 4; # applying cubic B-spline basis function.
+nbasis   = length(knots) + norder - 2;  # the number of cubic B-spline basis functions used.
+basis = create.bspline.basis(c(min(xobs),max(xobs)),nbasis,norder,knots); # cubic B-spline basis functions.
+basismat   = eval.basis(xobs, basis);  # design matrix.
+
+# Use quadrature to get integral - Composite Simpson's Rule
+h <- 0.1
+quadpts <- seq(min(xobs),max(xobs),h)
+nquadpts <- length(quadpts)
+quadwts <- c(1,rep(c(4,2),(nquadpts-1)/2))
+quadwts[nquadpts] <- 1
+quadwts <- quadwts*h/3
+Second derivative of basis functions at quadrature points
+Q2basismat   = eval.basis(quadpts, basis,2);
+Rmat = t(Q2basismat)%*%(Q2basismat*(quadwts%*%t(rep(1,nbasis))))
+
+#generalized cross-validation method
+basismat2 = t(basismat)%*%basismat;
+lambdaVec = 10^seq(-10,5,1) # candidates of smoothing parameters
+nlambda = length(lambdaVec)
+df = rep(0,nlambda)
+GCV = df
+for (s in 1:nlambda)
+{
+    lambda = lambdaVec[s]   # smoothing parameter
+    Bmat   = basismat2 + lambda*Rmat;
+    chat = solve(Bmat)%*%t(basismat)%*%yobs;
+    
+    yhat = basismat%*%chat;     # fitted value
+    SSE = t(yhat-yobs)%*%(yhat-yobs)
+    Smat = basismat%*%solve(Bmat)%*%t(basismat)
+    df[s] = sum(diag(Smat))
+    GCV[s] = SSE/(nobs-df[s])^2
+}
+plot(seq(-10,5,1),GCV,type = "l")
+
+# Final fitting.
+lambda.opt = lambdaVec[which.min(GCV)]; # optimal smoothing parameter by GCV criterion.
+Bmat   = basismat2 + lambda.opt*Rmat;
+chat = solve(Bmat)%*%t(basismat)%*%yobs;    # Estimated splines coefficients.
+yhat = basismat%*%chat; # fitted value of Y.
+plot(xobs,yobs);
+lines(xobs,yhat,type = "l",col="red")
+
+
+
+
+
+
+
